@@ -3,7 +3,7 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var models = require('./models/models');
 
-mongoose.connect(process.env.CONNECTION_STRING||'mongodb://localhost/tripDB', function (err, db) {
+mongoose.connect(process.env.CONNECTION_STRING || 'mongodb://localhost/tripDB', function (err, db) {
   if (err) { console.log("database is not connected !") };
   if (db) { console.log("Database connected Successfully") }
 });
@@ -19,28 +19,20 @@ var User = models.user;
 var Trip = models.trip;
 var Todo = models.todo;
 
-// 1) if email exists - send user object; if not - send undefined
-// TODO: check with "go deeper" in Mongoose lesson
+// 1a) if email exists - send true; if not - false
+
+
+// 1b) send user object (only for existing)
 app.get('/authorisation/:email', function (req, res) {
   var email = req.params.email;
-  User.find({ 'email': email }, function (err, data) {
+  User.findOne({ 'email': email }).populate({
+    path: 'trips',
+    populate: {
+      path: 'todos'
+    },
+  }).exec(function (err, user) {
     if (err) throw err;
-    if (!data.length) res.send(undefined); // no such user
-    else if (!data[0].trips.length) res.send(data[0]); // user exists but has no trips
-    else data[0].populate('trips', function (err, updUser) { // user has trips and we populate them
-      if (err) throw err;
-      Trip.find({ "user": updUser._id }, function (err, myTrips) { // now we have an array of trips
-        if (err) throw err;
-        Trip.populate(myTrips, { path: 'todos', multi:true}, function (err, tripWithTodos) {
-          if (err) throw err;
-          res.send({
-            '_id': updUser.id,
-            'name': updUser.name,
-            'email': updUser.email,
-            "trips": tripWithTodos});
-        })
-      })
-    })
+    res.send(user);
   })
 })
 
@@ -87,7 +79,7 @@ app.post('/users/:userId/trips/:tripId/todos', function (req, res) {
   Trip.findById(tripId, function (err, trip) {
     if (err) { console.error(err); res.sendStatus(500).send(err); return; }
     var newTodo = new Todo({
-      user: trip.user, 
+      user: trip.user,
       text: req.body.text
     })
     newTodo.save(function (err, todo) {
@@ -109,10 +101,10 @@ app.post('/users/:userId/trips/:tripId/todos', function (req, res) {
 // at ajax success data.user != user._id and push data[i].todos to some local others' todos
 
 // 5) to handle getting all todos for a certain country
-app.get('/wish/:tripId/:country', function(req, res){
+app.get('/wish/:tripId/:country', function (req, res) {
   var tripId = req.params.tripId;
   var country = req.params.country;
-  Trip.find({'country':country}, function(err, trips){
+  Trip.find({ 'country': country }, function (err, trips) {
     if (err) { console.error(err); res.sendStatus(500).send(err); return; }
     res.send(trips);
   })
